@@ -3,6 +3,7 @@ use asr::{Address, Process};
 use crate::{quests::{Quest, QuestStatus}, Settings};
 
 
+#[derive(Default)]
 pub struct QuestsManager {
     quests: Vec<Quest>,
 }
@@ -130,3 +131,5 @@ impl QuestsManager {
         }
     }
 }
+
+

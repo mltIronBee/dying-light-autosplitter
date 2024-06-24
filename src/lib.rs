@@ -483,17 +483,14 @@ async fn main() {
                         quests_manager.reset_quests();
                     }
 
-                    if let Some(loading_ptr) = process.get_module_address(RD3D11_DLL).ok() {
-                       match loading.update(process.read::<u8>(loading_ptr + LOADING_OFFSET).ok()) {
-                            Some(pair) => {
-                                if pair.changed_to(&240) {
-                                    timer::pause_game_time();
-                                } else if pair.changed_from(&240) {
-                                    timer::resume_game_time();
-                                }
-                            },
-                            _ => {},
-                       }
+                    if let Ok(loading_ptr) = process.get_module_address(RD3D11_DLL) {
+                        if let Some(pair) = loading.update(process.read::<u8>(loading_ptr + LOADING_OFFSET).ok()) {
+                            if pair.changed_to(&240) {
+                                timer::pause_game_time();
+                            } else if pair.changed_from(&240) {
+                                timer::resume_game_time();
+                            }
+                        }
                     }
 
                     let Some(main_quest_tree) = main_quest_tree.update(get_maingame_quest_tree_ptr(&process, base_ptr.unwrap())) else {
@@ -561,7 +558,7 @@ fn get_base_address(process: &Process) -> Option<asr::Address> {
     let game_dll_addr = process.get_module_address(GAME_DLL).ok()?;
     let game_dll_size = process.get_module_size(GAME_DLL).ok()?;
 
-    let instruction_addr = MAINGAME_QUEST_TREE_SIGNATURE.scan_process_range(&process, (game_dll_addr, game_dll_size))? + MAINGAME_QUEST_TREE_OFFSET;
+    let instruction_addr = MAINGAME_QUEST_TREE_SIGNATURE.scan_process_range(process, (game_dll_addr, game_dll_size))? + MAINGAME_QUEST_TREE_OFFSET;
 
     process.read_pointer(instruction_addr + 0x4 + process.read::<i32>(instruction_addr).ok()?, asr::PointerSize::Bit64).ok()
 }
