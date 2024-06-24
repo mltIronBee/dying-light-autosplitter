@@ -22,7 +22,7 @@ jobs:
         uses: hecrj/setup-rust-action@v1
         with:
           rust-version: stable
-          targets: wasm32-unknown-unknown
+          targets: wasm32-wasi
 
       - name: Build
         run: |
@@ -32,7 +32,7 @@ jobs:
         if: github.ref == 'refs/heads/master'
         uses: softprops/action-gh-release@v1
         with:
-          files: target/wasm32-unknown-unknown/release/dl_autosplitter.wasm
+          files: target/wasm32-wasi/release/dl_autosplitter.wasm
           name: Latest
           tag_name: latest
           body: This contains the latest version of the auto splitter.
