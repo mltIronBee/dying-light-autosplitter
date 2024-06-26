@@ -1,6 +1,17 @@
-# dl_autosplitter
+# Autosplitter for Dying Light
 
-An auto splitter for Dying Light
+An auto splitter and load remover for Dying Light.
+
+## Usage
+
+1. Download latest version of [dl_autosplitter.wasm](https://github.com/mltIronBee/dying-light-autosplitter/releases/download/latest/dl_autosplitter.wasm) from the [Releases page](https://github.com/mltIronBee/dying-light-autosplitter/releases/tag/latest).
+2. Open LiveSplit and open `Edit layout window`. Add a new component called `Auto Splitting Runtime` under `Control` tab ![image](screenshots/asr_layout_editor.png "Layout Editor"), then double click `Auto Splitting Runtime` row in Layout Editor.
+3. In the `Auto Splitter Settings`, open `dl_autosplitter.wasm`, then using settings menu, configure your auto splitting settings up to your preferences.
+![image](screenshots/auto_splitter_settings.png "Auto Splitting Settings")
+4. Make sure, that default auto splitter, that is downloaded automatically for Dying Light is disabled, by navigating into a `Edit Splits` menu, and deactivating default load remover. This version of autosplitter provides the same load remover functionality.
+![image](screenshots/deactivated_load_remover.png "Deactivated Load Remover")
+5. Make sure, that your Live Split is set to `Game Time`
+![image](screenshots/gt_comparison.png "IGT Comparison")
 
 ## Compilation
 
@@ -19,7 +30,7 @@ cargo b --release
 
 The auto splitter is then available at:
 ```
-target/wasm32-unknown-unknown/release/dl_autosplitter.wasm
+target/wasm32-wasi/release/dl_autosplitter.wasm
 ```
 
 Make sure to look into the [API documentation](https://livesplit.org/asr/asr/) for the `asr` crate.
