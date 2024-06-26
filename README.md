@@ -22,6 +22,8 @@ An auto splitter and load remover for Dying Light.
 
 ![image](screenshots/gt_comparison.png "IGT Comparison")
 
+Optionally, you can use precofigured [splits](splits/Dying%20Light%20-%20Autosplitter%20-%20Simple.lss) and [layout](splits/dl_autosplitter_simple.lsl) to run with this auto splitter. Just load the `dl_autosplitter.wasm` and you're ready to go. 
+
 ## Compilation
 
 This auto splitter is written in Rust. In order to compile it, you need to
