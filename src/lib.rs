@@ -431,15 +431,21 @@ pub struct Settings {
     #[default = true]
     xtract_after_crane: bool, // 833
 
+    /// After final QTE
+    #[default = true]
+    xtract_final_qte: bool, // Movie manager hook
+
     /// Start of credits
     #[default = false]
     xtract_roll_credits: bool // 834
 }
 
-
 const MAINGAME_QUEST_TREE_SIGNATURE: Signature<11> = Signature::new("48 8B 05 ?? ?? ?? ?? 48 8B 0C F0");
 const MAINGAME_QUEST_TREE_OFFSET: u64 = 3;
+const MOVIE_MANAGER_SIGNATURE: Signature<12> = Signature::new("48 8B 0D ?? ?? ?? ?? 33 ED 48 89 05");
+const MOVIE_MANAGER_OFFSET: u64 = 3;
 const GAME_DLL: &str = "gamedll_x64_rwdi.dll";
+const ENGINE_DLL: &str = "engine_x64_rwdi.dll";
 const RD3D11_DLL:&str = "rd3d11_x64_rwdi.dll";
 const LOADING_OFFSET: u64 = 0x7E048;
 const RESET_DELAY_MS: i64 = 1000;
@@ -453,25 +459,48 @@ async fn main() {
         let process = Process::wait_attach("DyingLightGame.exe").await;
         process
             .until_closes(async {
-                let mut base_ptr: Option<asr::Address>;
+                let mut quest_tree_base_ptr: Option<asr::Address>;
+                let mut movie_manager_base_ptr: Option<asr::Address>;
 
                 loop {
-                    base_ptr = get_base_address(&process);
+                    quest_tree_base_ptr = scan_signature(&process, GAME_DLL, MAINGAME_QUEST_TREE_SIGNATURE, MAINGAME_QUEST_TREE_OFFSET);
 
-                    if base_ptr.is_some() {
+                    if quest_tree_base_ptr.is_some() {
+                        break;
+                    }
+
+                    next_tick().await;
+                }
+
+                loop {
+                    movie_manager_base_ptr = scan_signature(&process, ENGINE_DLL, MOVIE_MANAGER_SIGNATURE, MOVIE_MANAGER_OFFSET);
+
+                    if movie_manager_base_ptr.is_some() {
                         break;
                     }
 
                     next_tick().await;
                 }
                 
+                let Some(quest_tree_base_ptr) = quest_tree_base_ptr else {
+                    next_tick().await;
+                    return;
+                };
+
+                let Some(movie_manager_base_ptr) = movie_manager_base_ptr else {
+                    next_tick().await;
+                    return;
+                };
+
                 asr::set_tick_rate(120.0);
 
                 let mut loading = Watcher::<u8>::new();
                 let mut main_quest_tree = Watcher::<asr::Address>::new();
+                let mut movie_manager = Watcher::<asr::Address>::new();
                 let mut quests_manager = QuestsManager::new();
                 let mut reset_watcher = Watcher::<u8>::new();
                 let mut start_watcher = Watcher::<u8>::new();
+                let mut final_qte_watcher = Watcher::<u64>::new();
                 let mut reset_time = Instant::now();
 
                 quests_manager.generate_quests(&settings);
@@ -493,11 +522,30 @@ async fn main() {
                         }
                     }
 
-                    let Some(main_quest_tree) = main_quest_tree.update(get_maingame_quest_tree_ptr(&process, base_ptr.unwrap())) else {
+                    let Some(main_quest_tree) = main_quest_tree.update(get_maingame_quest_tree_ptr(&process, quest_tree_base_ptr)) else {
                         next_tick().await;
 
                         continue;
                     };
+
+                    if settings.xtract_final_qte {
+                        if let Some(movie_manager) = movie_manager.update(get_movie_manager_ptr(&process, movie_manager_base_ptr)) {
+                            if let Some(final_qte_watcher) = final_qte_watcher.update(
+                                process.read_pointer_path::<u64>(
+                                    movie_manager.current + 0x10,
+                                    asr::PointerSize::Bit64,
+                                    &[0x0, 0x8, 0x98]
+                                ).ok()
+                            ) {
+                                asr::print_limited::<64>(&format_args!("Final QTE status: {:X}", final_qte_watcher.current));
+                                // CMovie object inside CMovieManager has 2 float values for sequence start and sequence end
+                                // We can read both of the variables by reading 8 bytes at once and interpretating them as u64 in a hex format
+                                if final_qte_watcher.changed_to(&0x43A9C0014352DDDF) {
+                                    timer::split();
+                                }
+                            }
+                        }
+                    }
 
                     if settings.auto_reset {
                         let path = match settings.category {
@@ -554,15 +602,19 @@ async fn main() {
     }
 }
 
-fn get_base_address(process: &Process) -> Option<asr::Address> {
-    let game_dll_addr = process.get_module_address(GAME_DLL).ok()?;
-    let game_dll_size = process.get_module_size(GAME_DLL).ok()?;
+fn scan_signature<const N: usize>(process: &Process, module_name: &str, signature: Signature<N>, offset: u64) -> Option<asr::Address> {
+    let module_addr = process.get_module_address(module_name).ok()?;
+    let module_size = process.get_module_size(module_name).ok()?;
 
-    let instruction_addr = MAINGAME_QUEST_TREE_SIGNATURE.scan_process_range(process, (game_dll_addr, game_dll_size))? + MAINGAME_QUEST_TREE_OFFSET;
+    let instruction_addr = signature.scan_process_range(process, (module_addr, module_size))? + offset;
 
     process.read_pointer(instruction_addr + 0x4 + process.read::<i32>(instruction_addr).ok()?, asr::PointerSize::Bit64).ok()
 }
 
 fn get_maingame_quest_tree_ptr(process: &Process, base_ptr: asr::Address) -> Option<asr::Address> {
     DeepPointer::<5>::new_64bit(base_ptr, &[0x0, 0x20, 0x270, 0x8, 0x0]).deref_offsets(process).ok()
+}
+
+fn get_movie_manager_ptr(process: &Process, base_ptr: asr::Address) -> Option<asr::Address> {
+    DeepPointer::<7>::new_64bit(base_ptr, &[0x28, 0xF8, 0xF0, 0x1F8, 0xC0, 0x88, 0x18]).deref_offsets(process).ok()
 }
