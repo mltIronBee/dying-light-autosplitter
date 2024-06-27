@@ -1,5 +1,13 @@
 use asr::{
-    deep_pointer::DeepPointer, future::next_tick, settings::{gui::Title, Gui}, signature::Signature, time::Duration, time_util::Instant, timer::{self, TimerState}, watcher::Watcher, Process
+    deep_pointer::DeepPointer,
+    future::next_tick,
+    settings::{gui::Title, Gui},
+    signature::Signature,
+    time::Duration,
+    time_util::Instant,
+    timer::{self, TimerState},
+    watcher::Watcher,
+    Process,
 };
 use quests_manager::QuestsManager;
 
@@ -537,7 +545,6 @@ async fn main() {
                                     &[0x0, 0x8, 0x98]
                                 ).ok()
                             ) {
-                                asr::print_limited::<64>(&format_args!("Final QTE status: {:X}", final_qte_watcher.current));
                                 // CMovie object inside CMovieManager has 2 float values for sequence start and sequence end
                                 // We can read both of the variables by reading 8 bytes at once and interpretating them as u64 in a hex format
                                 if final_qte_watcher.changed_to(&0x43A9C0014352DDDF) {
@@ -592,8 +599,9 @@ async fn main() {
                         quests_manager.reset_quests();
                     }
 
-                    quests_manager.update_quests(&process, main_quest_tree.current);
-
+                    if timer::state() == TimerState::Running {
+                        quests_manager.update_quests(&process, main_quest_tree.current);
+                    }
 
                     next_tick().await;
                 }
