@@ -574,7 +574,7 @@
       <SegmentHistory />
     </Segment>
     <Segment>
-      <Name>Kill bandits</Name>
+      <Name>Enter Clinic</Name>
       <Icon />
       <SplitTimes>
         <SplitTime name="Personal Best" />
