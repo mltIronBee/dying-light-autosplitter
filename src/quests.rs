@@ -39,6 +39,18 @@ impl Quest
             return None;
         }
 
+        let Ok(quest_id) = process.read_pointer_path::<u16>(
+            quest_tree_ptr,
+            asr::PointerSize::Bit64,
+            &[0x20, (0x8 * self.quest_id).into(), 0x10],
+        ) else {
+            return self.quest_status.pair.as_ref();
+        };
+
+        if quest_id != self.quest_id {
+            return self.quest_status.pair.as_ref();
+        }
+
         let status = match process.read_pointer_path::<u8>(
             quest_tree_ptr,
             asr::PointerSize::Bit64,
