@@ -56,7 +56,7 @@ pub struct Settings {
     #[default = true]
     awakening_prologue_rahim: bool, // ID 20
 
-    /// After healing mark
+    /// After healing Mark
     #[default = true]
     heal_mark: bool, // 39
 
@@ -268,19 +268,19 @@ pub struct Settings {
     #[default = false]
     pit_pass_out: bool, // 524
 
-    /// After talking to Spike
+    /// After talking to Quartermaster
     #[default = true]
-    pit_spike: bool, // 525
+    pit_quartermaster: bool, // 525
 
     #[default = false]
     pit_items: bool, // 527
 
     /// After reaching tunnel
-    #[default = true]
+    #[default = false]
     saviors_reach_tunnels: bool, // 530
 
     /// After reaching saviors
-    #[default = false]
+    #[default = true]
     reach_saviors: bool, // 534
 
     /// After talking to saviors guide
@@ -403,13 +403,13 @@ pub struct Settings {
     #[heading_level = 1]
     _the_clinic: Title,
 
-    /// After Camden dialogue / Bandits spawn
+    /// After Entering the Clinic
     #[default = true]
-    bandits_spawned: bool, // 813
+    tc_enter_clinic: bool, // 815
 
     /// After talking to Camden
     #[default = true]
-    talk_to_camden: bool, // 815
+    talk_to_camden: bool, // 825
 
     /// After GRE (Rais)
     #[default = true]
@@ -450,10 +450,9 @@ pub struct Settings {
 
 const MAINGAME_QUEST_TREE_SIGNATURE: Signature<11> = Signature::new("48 8B 05 ?? ?? ?? ?? 48 8B 0C F0");
 const MAINGAME_QUEST_TREE_OFFSET: u64 = 3;
-const MOVIE_MANAGER_SIGNATURE: Signature<12> = Signature::new("48 8B 0D ?? ?? ?? ?? 33 ED 48 89 05");
+const MOVIE_MANAGER_SIGNATURE: Signature<14> = Signature::new("48 8B 05 ?? ?? ?? ?? 48 63 CA 48 8B 3C C8");
 const MOVIE_MANAGER_OFFSET: u64 = 3;
 const GAME_DLL: &str = "gamedll_x64_rwdi.dll";
-const ENGINE_DLL: &str = "engine_x64_rwdi.dll";
 const RD3D11_DLL:&str = "rd3d11_x64_rwdi.dll";
 const LOADING_OFFSET: u64 = 0x7E048;
 const RESET_DELAY_MS: i64 = 1000;
@@ -469,23 +468,31 @@ async fn main() {
             .until_closes(async {
                 let mut quest_tree_base_ptr: Option<asr::Address>;
                 let mut movie_manager_base_ptr: Option<asr::Address>;
+                let mut main_quest_tree = Watcher::<asr::Address>::new();
 
                 loop {
-                    quest_tree_base_ptr = scan_signature(&process, GAME_DLL, MAINGAME_QUEST_TREE_SIGNATURE, MAINGAME_QUEST_TREE_OFFSET);
+                    if let Some(address) = scan_signature(&process, GAME_DLL, MAINGAME_QUEST_TREE_SIGNATURE, MAINGAME_QUEST_TREE_OFFSET) {
+                        quest_tree_base_ptr = Some(address);
 
-                    if quest_tree_base_ptr.is_some() {
-                        break;
+                        if main_quest_tree.update(get_maingame_quest_tree_ptr(&process, quest_tree_base_ptr.unwrap())).is_some() {
+                            break;
+                        }
                     }
 
                     next_tick().await;
                 }
 
-                loop {
-                    movie_manager_base_ptr = scan_signature(&process, ENGINE_DLL, MOVIE_MANAGER_SIGNATURE, MOVIE_MANAGER_OFFSET);
+                let mut movie_manager = Watcher::<asr::Address>::new();
 
-                    if movie_manager_base_ptr.is_some() {
-                        break;
+                loop {
+                    if let Some(address) = scan_signature(&process, GAME_DLL, MOVIE_MANAGER_SIGNATURE, MOVIE_MANAGER_OFFSET) {
+                        movie_manager_base_ptr = Some(address);
+
+                        if movie_manager.update(get_movie_manager_ptr(&process, movie_manager_base_ptr.unwrap())).is_some() {
+                            break;
+                        }
                     }
+
 
                     next_tick().await;
                 }
@@ -503,8 +510,6 @@ async fn main() {
                 asr::set_tick_rate(120.0);
 
                 let mut loading = Watcher::<u8>::new();
-                let mut main_quest_tree = Watcher::<asr::Address>::new();
-                let mut movie_manager = Watcher::<asr::Address>::new();
                 let mut quests_manager = QuestsManager::new();
                 let mut reset_watcher = Watcher::<u8>::new();
                 let mut start_watcher = Watcher::<u8>::new();
@@ -565,6 +570,9 @@ async fn main() {
                         if let Some(reset_watcher) = reset_watcher.update(
                             process.read_pointer_path(main_quest_tree.current, asr::PointerSize::Bit64, path.as_slice()).ok()
                         ) {
+                            // When save warping, game loads all of the quests one by one, flipping the status flag to 1 then to 2
+                            // creating false positive scenario for a reset. If reset status flag stays 1 for continous amount of time
+                            // we can be sure, that the run is actually being reset
                             if reset_watcher.changed_to(&1) {
                                 reset_time = Instant::now();
                             }
@@ -624,5 +632,5 @@ fn get_maingame_quest_tree_ptr(process: &Process, base_ptr: asr::Address) -> Opt
 }
 
 fn get_movie_manager_ptr(process: &Process, base_ptr: asr::Address) -> Option<asr::Address> {
-    DeepPointer::<7>::new_64bit(base_ptr, &[0x28, 0xF8, 0xF0, 0x1F8, 0xC0, 0x88, 0x18]).deref_offsets(process).ok()
+    DeepPointer::<7>::new_64bit(base_ptr, &[0x0, 0x8, 0x78, 0x0, 0x8, 0x2C0, 0x18]).deref_offsets(process).ok()
 }
